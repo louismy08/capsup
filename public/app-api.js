@@ -47,7 +47,38 @@
     var f = function () { authed = false; S = null; qz = null; fc = null; showLand(); };
     api("/logout", "POST").then(f, f);
   };
-  A.wipe = function () { $("err").textContent = "Mot de passe oublié ? Écris-nous à " + SUPPORT_EMAIL + "."; };
+  A.wipe = function () {
+    var er = $("err"), m = ($("ae").value || "").trim().toLowerCase();
+    if (!/\S+@\S+\.\S+/.test(m)) { er.textContent = "Écris d’abord ton e-mail dans la case ci-dessus, puis clique sur « Mot de passe oublié ? »."; return; }
+    er.style.color = "var(--mu)"; er.textContent = "Envoi en cours…";
+    api("/forgot", "POST", { email: m })
+      .then(function (d) { er.textContent = d.message; })
+      .catch(function (e) { er.style.color = ""; er.textContent = e.message + " (" + SUPPORT_EMAIL + ")"; });
+  };
+  // Limite de 3 sessions QCM par jour (comptes gratuits) : vérifiée par le serveur
+  var startQ = A.startQ;
+  A.startQ = function (v) {
+    if (!authed || S.prem != "Gratuit") return startQ(v);
+    api("/qcm/start", "POST").then(function (d) {
+      if (d.used != null) S.qd = { d: dk(), n: d.used - 1 };
+      startQ(v);
+    }).catch(function (e) {
+      toast(e.message);
+      if (/Limite/.test(e.message)) { S.qd = { d: dk(), n: 3 }; go("prem"); }
+    });
+  };
+  // Réinitialisation du mot de passe depuis le lien reçu par e-mail
+  function resetScreen(token) {
+    var box = '<div class="box"><h2 style="margin:8px 0 4px">Nouveau mot de passe</h2><p class="mu" style="margin:0 0 6px">Choisis un mot de passe de 8 caractères minimum.</p>' +
+      '<label for="rp">Mot de passe</label><input id="rp" type="password" autocomplete="new-password" placeholder="8 caractères minimum">' +
+      '<div class="err" id="rerr"></div><button class="btn lg" style="width:100%" id="rgo">Enregistrer</button></div>';
+    $("auth").innerHTML = box; $("auth").style.display = "flex";
+    $("rgo").onclick = function () {
+      api("/reset", "POST", { token: token, password: $("rp").value })
+        .then(function (d) { history.replaceState(null, "", location.pathname); adopt(d); A.closeauth(); showApp(); toast("Mot de passe modifié."); })
+        .catch(function (e) { $("rerr").textContent = e.message; });
+    };
+  }
   A.reset = function () {
     if (!arm) { arm = true; render(); return; }
     arm = false;
@@ -84,6 +115,8 @@
     }).catch(function () {});
   }
   window.__boot = function () {
+    var rt = /[?&]reset=([a-f0-9]{64})/.exec(location.search);
+    if (rt) { showLand(); resetScreen(rt[1]); return; }
     api("/me").then(function (d) {
       adopt(d); showApp();
       if (/[?&]paid=1/.test(location.search)) {
