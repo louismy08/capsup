@@ -1,6 +1,6 @@
 /* Connexion du site au serveur : comptes, sauvegarde et paiement Stripe. */
 (function () {
-  var SUPPORT_EMAIL = "contact@exemple.fr"; // À REMPLACER par ton adresse de support
+  var SUPPORT_EMAIL = "louismartinyork@outlook.com"; // À REMPLACER par ton adresse de support
   var authed = false, timer = null;
 
   function api(path, method, body) {
@@ -100,7 +100,14 @@
   A.doPay = function (v) {
     api("/checkout", "POST", { plan: v == "Premium" ? "monthly" : "annual" })
       .then(function (d) { location.href = d.url; })
-      .catch(function (e) { var er = $("err"); if (er) er.textContent = e.message; else toast(e.message); });
+      .catch(function (e) {
+        var box = document.querySelector("#auth .box");
+        if (box) {
+          box.innerHTML = '<h2 style="margin:8px 0 10px">Premium arrive bientôt</h2>' +
+            '<p style="font-size:16px;line-height:1.5;margin:0 0 16px">' + e.message + '</p>' +
+            '<button class="btn lg" style="width:100%" data-a="closeauth">OK, compris</button>';
+        } else { toast(e.message); }
+      });
   };
   A.portal = function () {
     api("/portal", "POST").then(function (d) { location.href = d.url; })
